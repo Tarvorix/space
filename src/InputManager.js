@@ -108,6 +108,7 @@ export class InputManager {
           left: 35px;
           top: 35px;
           transition: none;
+          pointer-events: none;
         }
         #joystick-label {
           position: absolute;
@@ -117,6 +118,7 @@ export class InputManager {
           color: rgba(255,255,255,0.5);
           font-size: 10px;
           font-family: monospace;
+          pointer-events: none;
         }
       </style>
       <div id="joystick-base"></div>
