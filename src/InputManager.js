@@ -121,7 +121,7 @@ export class InputManager {
       </style>
       <div id="joystick-base"></div>
       <div id="joystick-knob"></div>
-      <div id="joystick-label">MOVE</div>
+      <div id="joystick-label">HEADING</div>
     `;
 
     document.body.appendChild(container);
@@ -305,16 +305,10 @@ export class InputManager {
       event.clientY - this.dragState.startY
     );
 
-    if (dragPx < DRAG_DEADZONE) {
-      ship.thrustPower = 0;
-      return;
-    }
+    if (dragPx < DRAG_DEADZONE) return;
 
-    // Set facing direction
+    // Set facing direction only - throttle slider controls thrust power
     ship.desiredFacingDir = combined.lengthSq() > 0.0001 ? combined.clone() : null;
-
-    // Drag distance = throttle (drag further = more thrust)
-    ship.thrustPower = Math.min(1, dragPx / DRAG_MAX_PX);
   }
 
   _onKeyDown(event) {
@@ -423,10 +417,8 @@ export class InputManager {
     if (hasInput) {
       dir.normalize();
       ship.desiredFacingDir = dir.clone();
-      // Full thrust while keys held
-      ship.thrustPower = 1;
     }
-    // When no keys pressed, thrustPower stays at current value (slider controls it)
+    // Throttle slider controls thrust power
   }
 
   _applyJoystickInput(ship) {
@@ -436,8 +428,7 @@ export class InputManager {
 
     const dist = Math.hypot(dx, dy);
     if (dist < 5) {
-      // Dead zone - no thrust
-      ship.thrustPower = 0;
+      // Dead zone - don't change heading
       return;
     }
 
@@ -465,9 +456,7 @@ export class InputManager {
       dir.normalize();
       ship.desiredFacingDir = dir.clone();
     }
-
-    // Joystick distance = throttle (push further = more thrust)
-    ship.thrustPower = Math.min(1, dist / maxRadius);
+    // Throttle slider controls thrust power
   }
 
   // Public methods for UI integration
