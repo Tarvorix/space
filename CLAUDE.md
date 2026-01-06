@@ -93,6 +93,16 @@ npm run build    # Production build to dist/
 npm run preview  # Preview production build
 ```
 
+### Git Commit Requirements
+
+**All commits must be authored by Tarvorix.** Never use "Claude" or any AI-related attribution in:
+- Git author name/email
+- Git committer name/email
+- Commit messages
+- Branch names (except system-generated ones)
+
+When making commits, ensure the git config is set appropriately or commits are attributed to the repository owner.
+
 ### Key Development Notes
 
 - The game uses ES modules (`"type": "module"` in package.json)
