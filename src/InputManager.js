@@ -121,7 +121,7 @@ export class InputManager {
       </style>
       <div id="joystick-base"></div>
       <div id="joystick-knob"></div>
-      <div id="joystick-label">THRUST</div>
+      <div id="joystick-label">HEADING</div>
     `;
 
     document.body.appendChild(container);

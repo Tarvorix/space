@@ -315,11 +315,14 @@ function positionCameraOnShip(ship) {
 
 function updatePlannedArrow(arrow, ship) {
   if (!arrow || !ship) return;
-  if (ship.brace || ship.thrustPower <= 0.01 || ship.desiredThrustDir.lengthSq() < 0.0001) {
+
+  // Show desired facing direction (white arrow = where ship is rotating toward)
+  if (!ship.desiredFacingDir || ship.desiredFacingDir.lengthSq() < 0.0001 || ship.brace) {
     arrow.visible = false;
     return;
   }
 
+  // Arrow length based on thrust power
   const length = ship.getEffectiveThrust() * ship.thrustPower;
   if (length <= 0.05) {
     arrow.visible = false;
@@ -327,7 +330,7 @@ function updatePlannedArrow(arrow, ship) {
   }
 
   arrow.position.copy(ship.position);
-  arrow.setDirection(ship.desiredThrustDir.clone().normalize());
+  arrow.setDirection(ship.desiredFacingDir.clone().normalize());
   arrow.setLength(length, 0.5, 0.3);
   arrow.visible = true;
 }
