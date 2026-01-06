@@ -445,12 +445,12 @@ export class InputManager {
     const camRight = new THREE.Vector3();
     camRight.crossVectors(camForward, new THREE.Vector3(0, 1, 0)).normalize();
 
-    // Joystick: up = forward, right = right
+    // Joystick: push toward top of screen = face camera forward direction
     const normX = dx / maxRadius;
-    const normY = -dy / maxRadius; // Invert Y so up = forward
+    const normY = dy / maxRadius;
 
     const dir = new THREE.Vector3();
-    dir.addScaledVector(camForward, normY);
+    dir.addScaledVector(camForward, normY); // Push down = forward (matches knob visual)
     dir.addScaledVector(camRight, normX);
     dir.y = this.elevation;
 
