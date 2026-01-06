@@ -117,9 +117,6 @@ async function init() {
       if (!selectedShip) return;
       selectedShip.brace = value;
     },
-    onFaceModeToggle: (value) => {
-      inputManager.setFaceMode(value);
-    },
     onElevationChange: (value) => {
       inputManager.setElevation(value);
     },

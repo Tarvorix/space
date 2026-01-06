@@ -109,6 +109,7 @@ export function applyPhysics(ship) {
 export function applyRTSPhysics(ship, dt, turnDuration) {
   if (ship.isDestroyed) return;
 
+  // Rotate ship toward desired facing direction
   if (ship.desiredFacingDir && ship.desiredFacingDir.lengthSq() > 0.0001) {
     const targetQuat = getFacingToward(
       ship.position,
@@ -119,12 +120,14 @@ export function applyRTSPhysics(ship, dt, turnDuration) {
     ship.quaternion.copy(limitRotation(ship.quaternion, targetQuat, maxAngle));
   }
 
+  // Thrust is always in ship's forward direction (main engines at rear)
   if (ship.brace) {
     ship.isThrusting = false;
   } else {
     ship.isThrusting = ship.thrustPower > 0.01;
-    if (ship.desiredThrustDir && ship.isThrusting) {
-      const accel = ship.desiredThrustDir.clone().multiplyScalar(
+    if (ship.isThrusting) {
+      const forward = ship.getForward();
+      const accel = forward.multiplyScalar(
         ship.getEffectiveThrust() * ship.thrustPower * (dt / turnDuration)
       );
       ship.velocity.add(accel);

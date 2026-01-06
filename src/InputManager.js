@@ -302,12 +302,10 @@ export class InputManager {
 
     const power = Math.min(1, dragPx / DRAG_MAX_PX);
 
-    if (this.faceMode) {
-      ship.desiredFacingDir = combined.lengthSq() > 0.0001 ? combined.clone() : null;
-    } else {
-      ship.desiredThrustDir.copy(combined);
-      ship.thrustPower = power > 0.02 ? power : 0;
-    }
+    // Set facing direction (ship rotates to point this way)
+    // Thrust always comes from ship's forward direction (main engines)
+    ship.desiredFacingDir = combined.lengthSq() > 0.0001 ? combined.clone() : null;
+    ship.thrustPower = power > 0.02 ? power : 0;
   }
 
   _onKeyDown(event) {
@@ -415,13 +413,10 @@ export class InputManager {
 
     if (hasInput) {
       dir.normalize();
-
-      if (this.faceMode) {
-        ship.desiredFacingDir = dir.clone();
-      } else {
-        ship.desiredThrustDir.copy(dir);
-        ship.thrustPower = 1; // Full power when using keyboard
-      }
+      // Set facing direction - ship rotates to point this way
+      // Thrust always comes from ship's forward direction
+      ship.desiredFacingDir = dir.clone();
+      ship.thrustPower = 1; // Full power when using keyboard
     } else {
       // No keyboard input - don't clear thrust (let drag or joystick control it)
     }
@@ -462,13 +457,10 @@ export class InputManager {
 
     if (dir.lengthSq() > 0.001) {
       dir.normalize();
-
-      if (this.faceMode) {
-        ship.desiredFacingDir = dir.clone();
-      } else {
-        ship.desiredThrustDir.copy(dir);
-        ship.thrustPower = power;
-      }
+      // Set facing direction - ship rotates to point this way
+      // Thrust always comes from ship's forward direction
+      ship.desiredFacingDir = dir.clone();
+      ship.thrustPower = power;
     }
   }
 
@@ -485,7 +477,6 @@ export class InputManager {
     const ship = this.getSelectedShip();
     if (!ship) return;
 
-    ship.desiredThrustDir.set(0, 0, 0);
     ship.thrustPower = 0;
     ship.desiredFacingDir = null;
     this.elevation = 0;
