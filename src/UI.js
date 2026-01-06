@@ -2,7 +2,6 @@ export function createUI({
   onManualFire,
   onAutoFireToggle,
   onBraceToggle,
-  onFaceModeToggle,
   onElevationChange,
   onCenterControls,
   onPauseToggle,
@@ -128,17 +127,16 @@ export function createUI({
       <button id="manual-fire">FIRE</button>
       <label class="toggle"><input type="checkbox" id="autofire"> AUTOFIRE</label>
       <label class="toggle"><input type="checkbox" id="brace"> BRACE</label>
-      <label class="toggle"><input type="checkbox" id="face-mode"> FACE MODE</label>
       <div class="slider">
         <div>ELEVATION (Q/E)</div>
         <input id="elevation" type="range" min="-1" max="1" step="0.01" value="0">
       </div>
-      <button id="center-controls">CENTER CONTROLS</button>
+      <button id="center-controls">KILL THRUST</button>
       <div class="controls-hint">
-        <div>WASD/Arrows: Thrust | Q/E: Up/Down</div>
-        <div>Drag empty space: Rotate camera</div>
-        <div>Drag on ship: Set thrust direction</div>
-        <div>Click: Select/Target | Space: Pause</div>
+        <div>WASD/Arrows: Set heading | Q/E: Pitch</div>
+        <div>Drag on ship: Set heading + thrust</div>
+        <div>Thrust is always forward (Newtonian)</div>
+        <div>Click enemy: Target | Space: Pause</div>
       </div>
     </div>
   `;
@@ -147,7 +145,6 @@ export function createUI({
 
   const autoFireToggle = ui.querySelector('#autofire');
   const braceToggle = ui.querySelector('#brace');
-  const faceModeToggle = ui.querySelector('#face-mode');
   const elevationInput = ui.querySelector('#elevation');
 
   autoFireToggle.addEventListener('change', () => {
@@ -155,10 +152,6 @@ export function createUI({
   });
   braceToggle.addEventListener('change', () => {
     onBraceToggle(braceToggle.checked);
-  });
-  faceModeToggle.addEventListener('change', () => {
-    controlState.faceMode = faceModeToggle.checked;
-    onFaceModeToggle(faceModeToggle.checked);
   });
   elevationInput.addEventListener('input', () => {
     controlState.elevation = parseFloat(elevationInput.value);
@@ -192,7 +185,6 @@ export function createUI({
   });
 
   const controlState = {
-    faceMode: false,
     elevation: 0,
   };
 
@@ -202,10 +194,6 @@ export function createUI({
       if (!ship) return;
       autoFireToggle.checked = !!ship.autoFire;
       braceToggle.checked = !!ship.brace;
-    },
-    setFaceMode: (value) => {
-      controlState.faceMode = value;
-      faceModeToggle.checked = value;
     },
     updateStatus: (game, selectedShip) => updateStatus(game, selectedShip),
   };
