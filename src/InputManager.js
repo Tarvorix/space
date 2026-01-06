@@ -129,11 +129,14 @@ export class InputManager {
     this.joystick.element = container;
     this.joystick.knob = container.querySelector('#joystick-knob');
     const base = container.querySelector('#joystick-base');
+    this.joystick.base = base;
 
+    // All events on base element - pointer capture redirects events here
     base.addEventListener('pointerdown', this._onJoystickStart.bind(this));
-    window.addEventListener('pointermove', this._onJoystickMove.bind(this));
-    window.addEventListener('pointerup', this._onJoystickEnd.bind(this));
-    window.addEventListener('pointercancel', this._onJoystickEnd.bind(this));
+    base.addEventListener('pointermove', this._onJoystickMove.bind(this));
+    base.addEventListener('pointerup', this._onJoystickEnd.bind(this));
+    base.addEventListener('pointercancel', this._onJoystickEnd.bind(this));
+    base.addEventListener('lostpointercapture', this._onJoystickEnd.bind(this));
   }
 
   _onJoystickStart(event) {
@@ -163,11 +166,13 @@ export class InputManager {
   }
 
   _onJoystickEnd(event) {
-    if (event.pointerId !== this.joystick.pointerId) return;
+    if (!this.joystick.active) return;
+    if (event.pointerId !== undefined && event.pointerId !== this.joystick.pointerId) return;
 
     // Release pointer capture
-    if (event.target.hasPointerCapture && event.target.hasPointerCapture(event.pointerId)) {
-      event.target.releasePointerCapture(event.pointerId);
+    const base = this.joystick.base;
+    if (base && base.hasPointerCapture && base.hasPointerCapture(this.joystick.pointerId)) {
+      base.releasePointerCapture(this.joystick.pointerId);
     }
 
     this.joystick.active = false;
@@ -178,7 +183,6 @@ export class InputManager {
       this.joystick.knob.style.left = '35px';
       this.joystick.knob.style.top = '35px';
     }
-    // Don't clear thrustPower - throttle slider controls it
   }
 
   _updateJoystickVisual() {
