@@ -117,6 +117,10 @@ async function init() {
       if (!selectedShip) return;
       selectedShip.brace = value;
     },
+    onThrottleChange: (value) => {
+      if (!selectedShip) return;
+      selectedShip.thrustPower = value;
+    },
     onElevationChange: (value) => {
       inputManager.setElevation(value);
     },

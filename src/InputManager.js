@@ -178,12 +178,7 @@ export class InputManager {
       this.joystick.knob.style.left = '35px';
       this.joystick.knob.style.top = '35px';
     }
-
-    // Clear ship thrust
-    const ship = this.getSelectedShip();
-    if (ship) {
-      ship.thrustPower = 0;
-    }
+    // Don't clear thrustPower - throttle slider controls it
   }
 
   _updateJoystickVisual() {
@@ -300,7 +295,7 @@ export class InputManager {
       combined.normalize();
     }
 
-    // Calculate power based on drag distance
+    // Check drag distance for deadzone
     const dragPx = Math.hypot(
       event.clientX - this.dragState.startX,
       event.clientY - this.dragState.startY
@@ -308,12 +303,8 @@ export class InputManager {
 
     if (dragPx < DRAG_DEADZONE) return;
 
-    const power = Math.min(1, dragPx / DRAG_MAX_PX);
-
-    // Set facing direction (ship rotates to point this way)
-    // Thrust always comes from ship's forward direction (main engines)
+    // Set facing direction only - throttle slider controls thrust power
     ship.desiredFacingDir = combined.lengthSq() > 0.0001 ? combined.clone() : null;
-    ship.thrustPower = power > 0.02 ? power : 0;
   }
 
   _onKeyDown(event) {
@@ -421,13 +412,10 @@ export class InputManager {
 
     if (hasInput) {
       dir.normalize();
-      // Set facing direction - ship rotates to point this way
-      // Thrust always comes from ship's forward direction
+      // Set facing direction only - throttle slider controls thrust power
       ship.desiredFacingDir = dir.clone();
-      ship.thrustPower = 1; // Full power when using keyboard
-    } else {
-      // No keyboard input - don't clear thrust (let drag or joystick control it)
     }
+    // Don't touch thrustPower - throttle slider controls it
   }
 
   _applyJoystickInput(ship) {
@@ -437,11 +425,9 @@ export class InputManager {
 
     const dist = Math.hypot(dx, dy);
     if (dist < 5) {
-      ship.thrustPower = 0;
+      // Dead zone - don't change heading
       return;
     }
-
-    const power = Math.min(1, dist / maxRadius);
 
     // Convert joystick to camera-relative world direction
     const camera = this.sceneData.camera;
@@ -465,11 +451,10 @@ export class InputManager {
 
     if (dir.lengthSq() > 0.001) {
       dir.normalize();
-      // Set facing direction - ship rotates to point this way
-      // Thrust always comes from ship's forward direction
+      // Set facing direction only - throttle slider controls thrust power
       ship.desiredFacingDir = dir.clone();
-      ship.thrustPower = power;
     }
+    // Don't touch thrustPower - throttle slider controls it
   }
 
   // Public methods for UI integration
@@ -485,9 +470,9 @@ export class InputManager {
     const ship = this.getSelectedShip();
     if (!ship) return;
 
-    ship.thrustPower = 0;
     ship.desiredFacingDir = null;
     this.elevation = 0;
+    // Don't clear thrustPower - throttle slider controls it
   }
 
   getControlState() {

@@ -2,6 +2,7 @@ export function createUI({
   onManualFire,
   onAutoFireToggle,
   onBraceToggle,
+  onThrottleChange,
   onElevationChange,
   onCenterControls,
   onPauseToggle,
@@ -128,14 +129,17 @@ export function createUI({
       <label class="toggle"><input type="checkbox" id="autofire"> AUTOFIRE</label>
       <label class="toggle"><input type="checkbox" id="brace"> BRACE</label>
       <div class="slider">
+        <div>THROTTLE: <span id="throttle-val">0%</span></div>
+        <input id="throttle" type="range" min="0" max="1" step="0.05" value="0">
+      </div>
+      <div class="slider">
         <div>ELEVATION (Q/E)</div>
         <input id="elevation" type="range" min="-1" max="1" step="0.01" value="0">
       </div>
       <button id="center-controls">KILL THRUST</button>
       <div class="controls-hint">
-        <div>WASD/Arrows: Set heading | Q/E: Pitch</div>
-        <div>Drag on ship: Set heading + thrust</div>
-        <div>Thrust is always forward (Newtonian)</div>
+        <div>Joystick/WASD: Set heading</div>
+        <div>Throttle slider: Engine power</div>
         <div>Click enemy: Target | Space: Pause</div>
       </div>
     </div>
@@ -145,6 +149,8 @@ export function createUI({
 
   const autoFireToggle = ui.querySelector('#autofire');
   const braceToggle = ui.querySelector('#brace');
+  const throttleInput = ui.querySelector('#throttle');
+  const throttleVal = ui.querySelector('#throttle-val');
   const elevationInput = ui.querySelector('#elevation');
 
   autoFireToggle.addEventListener('change', () => {
@@ -153,6 +159,11 @@ export function createUI({
   braceToggle.addEventListener('change', () => {
     onBraceToggle(braceToggle.checked);
   });
+  throttleInput.addEventListener('input', () => {
+    const value = parseFloat(throttleInput.value);
+    throttleVal.textContent = `${Math.round(value * 100)}%`;
+    onThrottleChange(value);
+  });
   elevationInput.addEventListener('input', () => {
     controlState.elevation = parseFloat(elevationInput.value);
     onElevationChange(controlState.elevation);
@@ -160,6 +171,11 @@ export function createUI({
 
   ui.querySelector('#manual-fire').addEventListener('click', onManualFire);
   ui.querySelector('#center-controls').addEventListener('click', () => {
+    // Kill throttle
+    throttleInput.value = 0;
+    throttleVal.textContent = '0%';
+    onThrottleChange(0);
+    // Reset elevation
     controlState.elevation = 0;
     elevationInput.value = 0;
     onElevationChange(0);
@@ -194,6 +210,9 @@ export function createUI({
       if (!ship) return;
       autoFireToggle.checked = !!ship.autoFire;
       braceToggle.checked = !!ship.brace;
+      // Sync throttle slider with ship's thrust power
+      throttleInput.value = ship.thrustPower || 0;
+      throttleVal.textContent = `${Math.round((ship.thrustPower || 0) * 100)}%`;
     },
     updateStatus: (game, selectedShip) => updateStatus(game, selectedShip),
   };
