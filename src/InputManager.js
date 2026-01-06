@@ -148,6 +148,9 @@ export class InputManager {
     this.joystick.currentX = event.clientX;
     this.joystick.currentY = event.clientY;
 
+    // Capture pointer to keep receiving events on mobile
+    event.target.setPointerCapture(event.pointerId);
+
     this._updateJoystickVisual();
   }
 
@@ -161,6 +164,11 @@ export class InputManager {
 
   _onJoystickEnd(event) {
     if (event.pointerId !== this.joystick.pointerId) return;
+
+    // Release pointer capture
+    if (event.target.hasPointerCapture && event.target.hasPointerCapture(event.pointerId)) {
+      event.target.releasePointerCapture(event.pointerId);
+    }
 
     this.joystick.active = false;
     this.joystick.pointerId = null;
