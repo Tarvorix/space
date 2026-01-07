@@ -1,5 +1,15 @@
 import * as THREE from 'three';
 
+// Order types for ship commands
+export const ORDER_TYPES = {
+  NONE: 'none',           // No order - manual control
+  APPROACH: 'approach',   // Move toward target
+  ORBIT: 'orbit',         // Orbit target at range
+  KEEP_RANGE: 'keepRange', // Maintain distance from target
+  FLY_TO: 'flyTo',        // Fly to position
+  ALL_STOP: 'allStop',    // Kill all velocity
+};
+
 export class Ship {
   constructor(stats, faction) {
     this.stats = stats;
@@ -24,6 +34,15 @@ export class Ship {
     this.thrustPower = 0;
     this.desiredFacingDir = null;
     this.isThrusting = false;
+
+    // Order system
+    this.currentOrder = {
+      type: ORDER_TYPES.NONE,
+      target: null,         // Ship or null
+      position: null,       // Vector3 for flyTo
+      range: 15,            // Distance for orbit/keepRange
+      orbitDirection: 1,    // 1 = clockwise, -1 = counter-clockwise
+    };
 
     this.criticals = {
       dorsal_damaged: false,
@@ -117,5 +136,44 @@ export class Ship {
     if (!this.mesh) return;
     this.mesh.position.copy(this.position);
     this.mesh.quaternion.copy(this.quaternion);
+  }
+
+  // Order helpers
+  setOrder(type, options = {}) {
+    this.currentOrder.type = type;
+    this.currentOrder.target = options.target || null;
+    this.currentOrder.position = options.position || null;
+    this.currentOrder.range = options.range ?? 15;
+    this.currentOrder.orbitDirection = options.orbitDirection ?? 1;
+  }
+
+  clearOrder() {
+    this.currentOrder.type = ORDER_TYPES.NONE;
+    this.currentOrder.target = null;
+    this.currentOrder.position = null;
+  }
+
+  orbitTarget(target, range, direction = 1) {
+    this.setOrder(ORDER_TYPES.ORBIT, { target, range, orbitDirection: direction });
+  }
+
+  approachTarget(target) {
+    this.setOrder(ORDER_TYPES.APPROACH, { target });
+  }
+
+  keepRangeFrom(target, range) {
+    this.setOrder(ORDER_TYPES.KEEP_RANGE, { target, range });
+  }
+
+  flyToPosition(position) {
+    this.setOrder(ORDER_TYPES.FLY_TO, { position: position.clone() });
+  }
+
+  allStop() {
+    this.setOrder(ORDER_TYPES.ALL_STOP);
+  }
+
+  hasActiveOrder() {
+    return this.currentOrder.type !== ORDER_TYPES.NONE;
   }
 }

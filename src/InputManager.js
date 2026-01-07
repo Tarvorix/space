@@ -13,12 +13,22 @@ export class InputManager {
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
 
-    // Drag state
+    // Drag state for ship control
     this.dragState = {
       active: false,
       ship: null,
       startX: 0,
       startY: 0,
+      pointerId: null,
+    };
+
+    // Orbit drag state for setting orbit on enemy
+    this.orbitDragState = {
+      active: false,
+      targetShip: null,
+      startX: 0,
+      startY: 0,
+      currentRadius: 15,
       pointerId: null,
     };
 
@@ -50,6 +60,9 @@ export class InputManager {
 
     // Callbacks
     this.onTargetSet = null;
+    this.onOrbitPreview = null;      // (targetPosition, radius) => void
+    this.onOrbitPreviewEnd = null;   // () => void
+    this.onOrbitConfirm = null;      // (selectedShip, targetShip, radius) => void
 
     this._setupEventListeners();
     this._createVirtualJoystick();
@@ -210,10 +223,21 @@ export class InputManager {
     if (hitShip) {
       const selectedShip = this.getSelectedShip();
 
-      // Click on enemy = set target
+      // Click on enemy = start orbit drag mode
       if (selectedShip && hitShip.faction !== selectedShip.faction) {
         selectedShip.target = hitShip;
         if (this.onTargetSet) this.onTargetSet(hitShip);
+
+        // Start orbit drag
+        this.orbitDragState.active = true;
+        this.orbitDragState.targetShip = hitShip;
+        this.orbitDragState.startX = event.clientX;
+        this.orbitDragState.startY = event.clientY;
+        this.orbitDragState.currentRadius = 15; // Default orbit radius
+        this.orbitDragState.pointerId = event.pointerId;
+
+        // Disable OrbitControls during orbit drag
+        this.sceneData.controls.enabled = false;
         return;
       }
 
@@ -236,13 +260,72 @@ export class InputManager {
   }
 
   _onPointerMove(event) {
+    // Handle orbit drag
+    if (this.orbitDragState.active) {
+      if (event.pointerId !== this.orbitDragState.pointerId) return;
+      this._updateOrbitDrag(event);
+      return;
+    }
+
+    // Handle ship control drag
     if (!this.dragState.active) return;
     if (event.pointerId !== this.dragState.pointerId) return;
 
     this._updateDragCommand(event);
   }
 
+  _updateOrbitDrag(event) {
+    const target = this.orbitDragState.targetShip;
+    if (!target) return;
+
+    // Calculate drag distance in pixels
+    const dragPx = Math.hypot(
+      event.clientX - this.orbitDragState.startX,
+      event.clientY - this.orbitDragState.startY
+    );
+
+    // Convert to world units (rough approximation)
+    // Use camera distance to scale appropriately
+    const camDist = this.sceneData.camera.position.distanceTo(target.position);
+    const scaleFactor = camDist / 500; // Adjust feel
+
+    // Minimum 5 units, scale with drag
+    const radius = Math.max(5, 10 + dragPx * scaleFactor * 0.5);
+    this.orbitDragState.currentRadius = radius;
+
+    // Show preview
+    if (this.onOrbitPreview) {
+      this.onOrbitPreview(target.position, radius);
+    }
+  }
+
   _onPointerUp(event) {
+    // Handle orbit drag end
+    if (this.orbitDragState.active && event.pointerId === this.orbitDragState.pointerId) {
+      const selectedShip = this.getSelectedShip();
+      const targetShip = this.orbitDragState.targetShip;
+      const radius = this.orbitDragState.currentRadius;
+
+      // Hide preview
+      if (this.onOrbitPreviewEnd) {
+        this.onOrbitPreviewEnd();
+      }
+
+      // Confirm orbit order
+      if (selectedShip && targetShip && this.onOrbitConfirm) {
+        this.onOrbitConfirm(selectedShip, targetShip, radius);
+      }
+
+      this.orbitDragState.active = false;
+      this.orbitDragState.targetShip = null;
+      this.orbitDragState.pointerId = null;
+
+      // Re-enable OrbitControls
+      this.sceneData.controls.enabled = true;
+      return;
+    }
+
+    // Handle ship control drag end
     if (event.pointerId !== this.dragState.pointerId) return;
 
     this.dragState.active = false;
@@ -311,6 +394,11 @@ export class InputManager {
 
     // Set facing direction only - throttle slider controls thrust power
     ship.desiredFacingDir = combined.lengthSq() > 0.0001 ? combined.clone() : null;
+
+    // Clear any active order - manual control takes over
+    if (ship.hasActiveOrder && ship.hasActiveOrder()) {
+      ship.clearOrder();
+    }
   }
 
   _onKeyDown(event) {
@@ -419,6 +507,10 @@ export class InputManager {
     if (hasInput) {
       dir.normalize();
       ship.desiredFacingDir = dir.clone();
+      // Clear any active order - manual control takes over
+      if (ship.hasActiveOrder && ship.hasActiveOrder()) {
+        ship.clearOrder();
+      }
     }
     // Throttle slider controls thrust power
   }
@@ -457,6 +549,10 @@ export class InputManager {
     if (dir.lengthSq() > 0.001) {
       dir.normalize();
       ship.desiredFacingDir = dir.clone();
+      // Clear any active order - manual control takes over
+      if (ship.hasActiveOrder && ship.hasActiveOrder()) {
+        ship.clearOrder();
+      }
     }
     // Throttle slider controls thrust power
   }

@@ -12,6 +12,8 @@ import { BlastMarkerManager } from './BlastMarkers.js';
 import { TorpedoManager } from './Torpedoes.js';
 import { createUI } from './UI.js';
 import { InputManager } from './InputManager.js';
+import { executeOrder } from './Orders.js';
+import { OrderVisuals } from './OrderVisuals.js';
 
 const TURN_DURATION = 10;
 const FIRE_COOLDOWN = 10;
@@ -20,6 +22,7 @@ let game;
 let sceneData;
 let blastMarkers;
 let torpedoes;
+let orderVisuals;
 let playerVelArrow;
 let aiVelArrow;
 let playerPlanArrow;
@@ -66,6 +69,7 @@ async function init() {
 
   blastMarkers = new BlastMarkerManager(scene);
   torpedoes = new TorpedoManager(scene);
+  orderVisuals = new OrderVisuals(scene);
 
   const playerModel = await loadShipModel(
     game.playerShip.stats.modelFile,
@@ -106,6 +110,18 @@ async function init() {
     setSelectedShip,
     () => game.getAllShips()
   );
+
+  // Wire up orbit drag callbacks
+  inputManager.onOrbitPreview = (targetPosition, radius) => {
+    orderVisuals.showOrbitPreview(targetPosition, radius);
+  };
+  inputManager.onOrbitPreviewEnd = () => {
+    orderVisuals.hideOrbitPreview();
+  };
+  inputManager.onOrbitConfirm = (ship, target, radius) => {
+    ship.orbitTarget(target, radius);
+    game.log(`${ship.stats.name} ordered to orbit ${target.stats.name} at ${radius.toFixed(0)} units`);
+  };
 
   ui = createUI({
     onManualFire: handleManualFire,
@@ -184,12 +200,22 @@ function updateRTS(dt) {
 
   updateAI(game.aiShip, game.playerShip);
 
+  // Execute orders for player ships (AI ships use updateAI)
+  for (const ship of game.getAllShips()) {
+    if (ship.faction === 'imperial' && ship.hasActiveOrder()) {
+      executeOrder(ship);
+    }
+  }
+
   for (const ship of game.getAllShips()) {
     if (!ship.isHulk) {
       applyRTSPhysics(ship, dt, TURN_DURATION);
     }
     syncShipVisuals(ship);
   }
+
+  // Update order visuals
+  orderVisuals.updateAll(game.getAllShips());
 
   blastMarkers.updateShipBlastMarkers(game.playerShip);
   blastMarkers.updateShipBlastMarkers(game.aiShip);

@@ -228,11 +228,13 @@ function updateStatus(game, selectedShip) {
   const selectedName = selectedShip ? selectedShip.stats.name : 'None';
   const targetName = selectedShip && selectedShip.target ? selectedShip.target.stats.name : 'None';
   const cooldown = selectedShip ? `${selectedShip.fireCooldown.toFixed(1)}s` : '--';
+  const orderStr = formatOrder(selectedShip);
 
   status.innerHTML = `
     <div>Time: ${game.time.toFixed(1)}s | Round: ${game.round}</div>
     <div>Selected: ${selectedName}</div>
     <div>Target: ${targetName} | Cooldown: ${cooldown}</div>
+    <div>Order: <span style="color:#44ff44;">${orderStr}</span></div>
     <hr style="border-color:#333;margin:8px 0;">
 
     <div class="ship-status">
@@ -267,4 +269,25 @@ function formatCriticals(ship) {
 
   if (crits.length === 0) return '';
   return `<div class="crit">! ${crits.join(', ')}</div>`;
+}
+
+function formatOrder(ship) {
+  if (!ship || !ship.currentOrder) return 'Manual';
+  const order = ship.currentOrder;
+  switch (order.type) {
+    case 'none':
+      return 'Manual';
+    case 'orbit':
+      return `Orbit ${order.target?.stats?.name || 'target'} @ ${order.range?.toFixed(0) || '?'}`;
+    case 'approach':
+      return `Approach ${order.target?.stats?.name || 'target'}`;
+    case 'keepRange':
+      return `Keep ${order.range?.toFixed(0) || '?'} from ${order.target?.stats?.name || 'target'}`;
+    case 'flyTo':
+      return 'Fly to waypoint';
+    case 'allStop':
+      return 'All Stop';
+    default:
+      return order.type;
+  }
 }
