@@ -6,6 +6,33 @@ const DISTANCE_TOLERANCE = 2;
 const VELOCITY_TOLERANCE = 0.5;
 
 /**
+ * Calculate intercept point - where to aim to catch a moving target
+ */
+function calculateIntercept(ship, target, distance) {
+  const targetVel = target.velocity;
+  const mySpeed = ship.stats.maxSpeed;
+
+  // If target isn't moving much, just aim at current position
+  if (targetVel.length() < 0.5) {
+    return target.position.clone();
+  }
+
+  // Estimate time to intercept (rough approximation)
+  const closingSpeed = mySpeed - ship.velocity.dot(targetVel.clone().normalize());
+  if (closingSpeed <= 0) {
+    // Can't catch up, aim ahead anyway
+    const timeAhead = distance / mySpeed;
+    return target.position.clone().add(targetVel.clone().multiplyScalar(timeAhead * 0.5));
+  }
+
+  const timeToIntercept = distance / closingSpeed;
+  // Don't predict too far ahead
+  const clampedTime = Math.min(timeToIntercept, 5);
+
+  return target.position.clone().add(targetVel.clone().multiplyScalar(clampedTime));
+}
+
+/**
  * Execute the current order for a ship.
  * Sets desiredFacingDir and thrustPower based on order type.
  * Returns true if order is still active, false if completed.
@@ -89,11 +116,16 @@ function executeOrbit(ship, order) {
     return false;
   }
 
+  // Use intercept point if target is moving and we're far
   const toTarget = target.position.clone().sub(ship.position);
   const distance = toTarget.length();
   const orbitRange = order.range;
   const direction = order.orbitDirection;
-  const toTargetNorm = toTarget.clone().normalize();
+
+  // Predict where target will be (intercept calculation)
+  const interceptPoint = calculateIntercept(ship, target, distance);
+  const toIntercept = interceptPoint.clone().sub(ship.position);
+  const toTargetNorm = distance > orbitRange + 5 ? toIntercept.normalize() : toTarget.clone().normalize();
 
   // Calculate tangent direction for orbit (perpendicular to toTarget)
   const up = new THREE.Vector3(0, 1, 0);
@@ -139,10 +171,12 @@ function executeOrbit(ship, order) {
   }
 
   if (distance > orbitRange + DISTANCE_TOLERANCE * 2) {
-    // Too far - approach with some tangent to start orbit smoothly
-    const blended = toTargetNorm.clone().add(tangent.clone().multiplyScalar(0.3)).normalize();
+    // Too far - approach at full thrust to catch up
+    // More direct approach when very far, add tangent component as we get closer
+    const tangentWeight = Math.max(0, 1 - distance / 50) * 0.3;
+    const blended = toTargetNorm.clone().add(tangent.clone().multiplyScalar(tangentWeight)).normalize();
     ship.desiredFacingDir = blended;
-    ship.thrustPower = 0.5;
+    ship.thrustPower = 1.0; // Full thrust to catch up
     return true;
   }
 
