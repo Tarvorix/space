@@ -29,7 +29,8 @@ let playerPlanArrow;
 let ui;
 let inputManager;
 let selectedShip = null;
-let isPaused = false;
+let isPaused = true; // Start paused until player clicks Start
+let gameStarted = false;
 
 function createFactionRing(color, radius) {
   const geometry = new THREE.TorusGeometry(radius, Math.max(0.02, radius * 0.016), 12, 48);
@@ -165,6 +166,22 @@ async function init() {
   setSelectedShip(game.playerShip);
 
   ui.updateStatus(game, selectedShip);
+
+  // Show start button once loading is complete
+  const startScreen = document.getElementById('start-screen');
+  const startButton = document.getElementById('start-button');
+  const loadingText = document.getElementById('loading-text');
+
+  loadingText.style.display = 'none';
+  startButton.style.display = 'block';
+
+  startButton.addEventListener('click', () => {
+    startScreen.classList.add('hidden');
+    isPaused = false;
+    gameStarted = true;
+  });
+
+  // Start render loop (paused until start button clicked)
   animate(performance.now());
 }
 
