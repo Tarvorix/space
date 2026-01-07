@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BattleBarge - 6DOF Newtonian Space Combat</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #000; }
+    #game { width: 100vw; height: 100vh; }
+
+    #start-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      font-family: 'Courier New', monospace;
+      color: #fff;
+    }
+
+    #start-screen.hidden {
+      display: none;
+    }
+
+    #start-screen h1 {
+      font-size: 3rem;
+      color: #4488ff;
+      text-shadow: 0 0 20px #4488ff;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.3em;
+    }
+
+    #start-screen .subtitle {
+      font-size: 1rem;
+      color: #888;
+      margin-bottom: 3rem;
+      letter-spacing: 0.2em;
+    }
+
+    #start-button {
+      font-family: 'Courier New', monospace;
+      font-size: 1.5rem;
+      padding: 1rem 3rem;
+      background: transparent;
+      border: 2px solid #4488ff;
+      color: #4488ff;
+      cursor: pointer;
+      letter-spacing: 0.2em;
+      transition: all 0.2s;
+    }
+
+    #start-button:hover {
+      background: #4488ff;
+      color: #000;
+      box-shadow: 0 0 30px #4488ff;
+    }
+
+    #start-screen .loading {
+      color: #666;
+      margin-top: 2rem;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="start-screen">
+    <h1>BATTLEBARGE</h1>
+    <div class="subtitle">NEWTONIAN SPACE COMBAT</div>
+    <button id="start-button" style="display: none;">START GAME</button>
+    <div class="loading" id="loading-text">Loading...</div>
+  </div>
+  <div id="game"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
