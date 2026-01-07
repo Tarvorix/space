@@ -93,53 +93,81 @@ function executeOrbit(ship, order) {
   const distance = toTarget.length();
   const orbitRange = order.range;
   const direction = order.orbitDirection;
+  const toTargetNorm = toTarget.clone().normalize();
 
   // Calculate tangent direction for orbit (perpendicular to toTarget)
   const up = new THREE.Vector3(0, 1, 0);
   const tangent = new THREE.Vector3().crossVectors(toTarget, up).normalize();
   tangent.multiplyScalar(direction); // Apply orbit direction
 
-  // Calculate desired velocity for stable orbit
-  const toTargetNorm = toTarget.clone().normalize();
+  // Check radial velocity (positive = moving toward target)
+  const radialSpeed = ship.velocity.dot(toTargetNorm);
 
-  if (distance < orbitRange - DISTANCE_TOLERANCE) {
-    // Too close - thrust away while maintaining tangent motion
-    const awayDir = toTargetNorm.clone().negate();
-    const blended = tangent.clone().add(awayDir.multiplyScalar(0.5)).normalize();
-    ship.desiredFacingDir = blended;
-    ship.thrustPower = 0.6;
-  } else if (distance > orbitRange + DISTANCE_TOLERANCE) {
-    // Too far - thrust toward while maintaining tangent motion
-    const blended = tangent.clone().add(toTargetNorm.clone().multiplyScalar(0.5)).normalize();
-    ship.desiredFacingDir = blended;
-    ship.thrustPower = 0.6;
-  } else {
-    // Good distance - maintain tangent velocity
-    // Check if we're moving too fast or slow for orbit
-    const tangentSpeed = ship.velocity.dot(tangent);
-    const idealSpeed = ship.stats.maxSpeed * 0.4; // Orbit at 40% max speed
+  // How far until we reach orbit distance?
+  const distanceToOrbit = distance - orbitRange;
 
-    if (tangentSpeed < idealSpeed - VELOCITY_TOLERANCE) {
-      // Speed up along tangent
-      ship.desiredFacingDir = tangent;
-      ship.thrustPower = 0.4;
-    } else if (tangentSpeed > idealSpeed + VELOCITY_TOLERANCE) {
-      // Slow down - thrust opposite to velocity component along tangent
-      ship.desiredFacingDir = tangent.clone().negate();
-      ship.thrustPower = 0.3;
-    } else {
-      // Good speed - face tangent, minimal thrust
-      ship.desiredFacingDir = tangent;
-      ship.thrustPower = 0.1;
+  // PRIORITY 1: Don't overshoot - brake if approaching too fast
+  if (radialSpeed > VELOCITY_TOLERANCE && distanceToOrbit > 0) {
+    // We're moving toward target and outside orbit range
+    const stoppingDist = estimateStoppingDistance(ship, radialSpeed);
+
+    if (stoppingDist >= distanceToOrbit * 0.8) {
+      // Need to brake NOW - thrust retrograde to radial motion
+      const brakeDir = toTargetNorm.clone().negate();
+      ship.desiredFacingDir = brakeDir;
+      ship.thrustPower = 0.9;
+      return true;
     }
+  }
+
+  // PRIORITY 2: If too close and still moving inward, emergency brake
+  if (distance < orbitRange && radialSpeed > VELOCITY_TOLERANCE) {
+    const brakeDir = toTargetNorm.clone().negate();
+    ship.desiredFacingDir = brakeDir;
+    ship.thrustPower = 1.0;
+    return true;
+  }
+
+  // PRIORITY 3: Adjust orbit distance
+  if (distance < orbitRange - DISTANCE_TOLERANCE) {
+    // Too close - thrust away while adding tangent component
+    const awayDir = toTargetNorm.clone().negate();
+    const blended = awayDir.clone().add(tangent.clone().multiplyScalar(0.3)).normalize();
+    ship.desiredFacingDir = blended;
+    ship.thrustPower = 0.7;
+    return true;
+  }
+
+  if (distance > orbitRange + DISTANCE_TOLERANCE * 2) {
+    // Too far - approach with some tangent to start orbit smoothly
+    const blended = toTargetNorm.clone().add(tangent.clone().multiplyScalar(0.3)).normalize();
+    ship.desiredFacingDir = blended;
+    ship.thrustPower = 0.5;
+    return true;
+  }
+
+  // PRIORITY 4: Maintain orbit - good distance range
+  const tangentSpeed = ship.velocity.dot(tangent);
+  const idealSpeed = ship.stats.maxSpeed * 0.3; // Orbit at 30% max speed
+
+  if (tangentSpeed < idealSpeed - VELOCITY_TOLERANCE) {
+    // Speed up along tangent
+    ship.desiredFacingDir = tangent;
+    ship.thrustPower = 0.4;
+  } else if (tangentSpeed > idealSpeed + VELOCITY_TOLERANCE * 2) {
+    // Too fast - brake
+    ship.desiredFacingDir = tangent.clone().negate();
+    ship.thrustPower = 0.3;
+  } else {
+    // Good orbital speed - just maintain and correct radial drift
+    ship.desiredFacingDir = tangent;
+    ship.thrustPower = 0.1;
 
     // Correct radial drift
-    const radialSpeed = ship.velocity.dot(toTargetNorm);
     if (Math.abs(radialSpeed) > VELOCITY_TOLERANCE) {
-      // Drifting in/out - correct it
       const correction = radialSpeed > 0 ? toTargetNorm.negate() : toTargetNorm;
-      ship.desiredFacingDir = ship.desiredFacingDir.clone().add(correction.multiplyScalar(0.3)).normalize();
-      ship.thrustPower = Math.max(ship.thrustPower, 0.3);
+      ship.desiredFacingDir = tangent.clone().add(correction.multiplyScalar(0.5)).normalize();
+      ship.thrustPower = 0.3;
     }
   }
 

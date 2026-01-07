@@ -287,10 +287,10 @@ export class InputManager {
     // Convert to world units (rough approximation)
     // Use camera distance to scale appropriately
     const camDist = this.sceneData.camera.position.distanceTo(target.position);
-    const scaleFactor = camDist / 500; // Adjust feel
+    const scaleFactor = camDist / 400; // Adjust feel
 
-    // Minimum 5 units, scale with drag
-    const radius = Math.max(5, 10 + dragPx * scaleFactor * 0.5);
+    // Minimum 5 units, scale with drag from there
+    const radius = Math.max(5, 5 + dragPx * scaleFactor * 0.3);
     this.orbitDragState.currentRadius = radius;
 
     // Show preview
