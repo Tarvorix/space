@@ -111,7 +111,7 @@ async function init() {
     () => game.getAllShips()
   );
 
-  // Wire up orbit drag callbacks
+  // Wire up order callbacks
   inputManager.onOrbitPreview = (targetPosition, radius) => {
     orderVisuals.showOrbitPreview(targetPosition, radius);
   };
@@ -121,6 +121,14 @@ async function init() {
   inputManager.onOrbitConfirm = (ship, target, radius) => {
     ship.orbitTarget(target, radius);
     game.log(`${ship.stats.name} ordered to orbit ${target.stats.name} at ${radius.toFixed(0)} units`);
+  };
+  inputManager.onApproachTarget = (ship, target) => {
+    ship.approachTarget(target);
+    game.log(`${ship.stats.name} ordered to approach ${target.stats.name}`);
+  };
+  inputManager.onFlyToPosition = (ship, position) => {
+    ship.flyToPosition(position);
+    game.log(`${ship.stats.name} ordered to fly to waypoint`);
   };
 
   ui = createUI({
@@ -145,6 +153,12 @@ async function init() {
     },
     onPauseToggle: (paused) => {
       isPaused = paused;
+    },
+    onAllStop: () => {
+      if (selectedShip) {
+        selectedShip.allStop();
+        game.log(`${selectedShip.stats.name} ordered to all stop`);
+      }
     },
   });
 

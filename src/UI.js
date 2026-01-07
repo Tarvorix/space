@@ -6,6 +6,7 @@ export function createUI({
   onElevationChange,
   onCenterControls,
   onPauseToggle,
+  onAllStop,
 }) {
   const ui = document.createElement('div');
   ui.id = 'game-ui';
@@ -137,10 +138,12 @@ export function createUI({
         <input id="elevation" type="range" min="-1" max="1" step="0.01" value="0">
       </div>
       <button id="center-controls">KILL THRUST</button>
+      <button id="all-stop">ALL STOP</button>
       <div class="controls-hint">
-        <div>Joystick/WASD: Set heading</div>
-        <div>Throttle slider: Engine power</div>
-        <div>Click enemy: Target | Space: Pause</div>
+        <div>Tap enemy: Approach</div>
+        <div>Drag from enemy: Orbit</div>
+        <div>Double-click space: Fly to</div>
+        <div>Joystick/WASD: Manual control</div>
       </div>
     </div>
   `;
@@ -180,6 +183,10 @@ export function createUI({
     elevationInput.value = 0;
     onElevationChange(0);
     onCenterControls();
+  });
+
+  ui.querySelector('#all-stop').addEventListener('click', () => {
+    if (onAllStop) onAllStop();
   });
 
   const pauseBtn = ui.querySelector('#pause-btn');

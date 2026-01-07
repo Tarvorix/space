@@ -63,6 +63,8 @@ export class InputManager {
     this.onOrbitPreview = null;      // (targetPosition, radius) => void
     this.onOrbitPreviewEnd = null;   // () => void
     this.onOrbitConfirm = null;      // (selectedShip, targetShip, radius) => void
+    this.onApproachTarget = null;    // (selectedShip, targetShip) => void
+    this.onFlyToPosition = null;     // (selectedShip, position) => void
 
     this._setupEventListeners();
     this._createVirtualJoystick();
@@ -255,6 +257,15 @@ export class InputManager {
       this.sceneData.controls.enabled = false;
 
       this._updateDragCommand(event);
+    } else {
+      // No ship hit - check for fly-to-position (double-click on empty space)
+      // Store click info for potential double-click detection
+      this._emptySpaceClickStart = {
+        x: event.clientX,
+        y: event.clientY,
+        time: performance.now(),
+        pointerId: event.pointerId,
+      };
     }
     // If no ship hit, OrbitControls handles camera movement naturally
   }
@@ -306,14 +317,28 @@ export class InputManager {
       const targetShip = this.orbitDragState.targetShip;
       const radius = this.orbitDragState.currentRadius;
 
+      // Calculate drag distance to detect tap vs drag
+      const dragPx = Math.hypot(
+        event.clientX - this.orbitDragState.startX,
+        event.clientY - this.orbitDragState.startY
+      );
+
       // Hide preview
       if (this.onOrbitPreviewEnd) {
         this.onOrbitPreviewEnd();
       }
 
-      // Confirm orbit order
-      if (selectedShip && targetShip && this.onOrbitConfirm) {
-        this.onOrbitConfirm(selectedShip, targetShip, radius);
+      // Quick tap = Approach, Drag = Orbit
+      if (dragPx < 10) {
+        // Quick tap - approach target
+        if (selectedShip && targetShip && this.onApproachTarget) {
+          this.onApproachTarget(selectedShip, targetShip);
+        }
+      } else {
+        // Drag - orbit at radius
+        if (selectedShip && targetShip && this.onOrbitConfirm) {
+          this.onOrbitConfirm(selectedShip, targetShip, radius);
+        }
       }
 
       this.orbitDragState.active = false;
@@ -326,14 +351,56 @@ export class InputManager {
     }
 
     // Handle ship control drag end
-    if (event.pointerId !== this.dragState.pointerId) return;
+    if (this.dragState.active && event.pointerId === this.dragState.pointerId) {
+      this.dragState.active = false;
+      this.dragState.ship = null;
+      this.dragState.pointerId = null;
 
-    this.dragState.active = false;
-    this.dragState.ship = null;
-    this.dragState.pointerId = null;
+      // Re-enable OrbitControls
+      this.sceneData.controls.enabled = true;
+      return;
+    }
 
-    // Re-enable OrbitControls
-    this.sceneData.controls.enabled = true;
+    // Handle empty space click (fly-to with double-click)
+    if (this._emptySpaceClickStart && event.pointerId === this._emptySpaceClickStart.pointerId) {
+      const clickInfo = this._emptySpaceClickStart;
+      const elapsed = performance.now() - clickInfo.time;
+      const moved = Math.hypot(event.clientX - clickInfo.x, event.clientY - clickInfo.y);
+
+      // Check for quick tap (not a drag for camera rotation)
+      if (elapsed < 300 && moved < 15) {
+        // Check for double-click
+        if (this._lastEmptySpaceClick && performance.now() - this._lastEmptySpaceClick < 400) {
+          // Double-click - fly to position
+          const worldPos = this._getWorldPositionFromPointer(event);
+          const selectedShip = this.getSelectedShip();
+          if (worldPos && selectedShip && this.onFlyToPosition) {
+            this.onFlyToPosition(selectedShip, worldPos);
+          }
+          this._lastEmptySpaceClick = null;
+        } else {
+          // First click - record time
+          this._lastEmptySpaceClick = performance.now();
+        }
+      }
+      this._emptySpaceClickStart = null;
+    }
+  }
+
+  _getWorldPositionFromPointer(event) {
+    const rect = this.sceneData.renderer.domElement.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, this.sceneData.camera);
+
+    // Intersect with XZ plane at y=0
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const intersection = new THREE.Vector3();
+
+    if (this.raycaster.ray.intersectPlane(plane, intersection)) {
+      return intersection;
+    }
+    return null;
   }
 
   _pickShip(event) {
