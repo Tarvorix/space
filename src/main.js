@@ -23,14 +23,14 @@ let sceneData;
 let blastMarkers;
 let torpedoes;
 let orderVisuals;
-let playerVelArrow;
-let aiVelArrow;
-let playerPlanArrow;
 let ui;
 let inputManager;
 let selectedShip = null;
-let isPaused = true; // Start paused until player clicks Start
+let isPaused = true;
 let gameStarted = false;
+
+// Track velocity arrows per ship
+const velocityArrows = new Map();
 
 function createFactionRing(color, radius) {
   const geometry = new THREE.TorusGeometry(radius, Math.max(0.02, radius * 0.016), 12, 48);
@@ -60,49 +60,91 @@ function syncShipVisuals(ship) {
   updateShipRing(ship);
 }
 
+/**
+ * Initialize visuals for a ship (model, ring, velocity arrow)
+ */
+async function initShipVisuals(ship) {
+  const { scene } = sceneData;
+
+  // Load model
+  const model = await loadShipModel(ship.stats.modelFile, ship.stats.modelScale);
+  applyFactionMaterial(model, ship.faction);
+  ship.mesh = model;
+  scene.add(model);
+
+  // Create ring
+  const ringColor = ship.faction === 'imperial' ? 0x4488ff : 0xff4444;
+  ship.ring = createFactionRing(ringColor, ship.collisionRadius * 1.4);
+  scene.add(ship.ring);
+
+  // Create velocity arrow
+  const arrowColor = ship.faction === 'imperial' ? 0x4488ff : 0xff4444;
+  const arrow = createVelocityArrow(arrowColor);
+  scene.add(arrow);
+  velocityArrows.set(ship.id, arrow);
+
+  // Attach hitbox data
+  if (ship.mesh) {
+    ship.mesh.traverse((child) => {
+      if (child.isMesh) {
+        child.userData.ship = ship;
+      }
+    });
+  }
+  if (ship.ring) {
+    ship.ring.userData.ship = ship;
+  }
+
+  syncShipVisuals(ship);
+}
+
+/**
+ * Remove visuals for a destroyed ship
+ */
+function removeShipVisuals(ship) {
+  const { scene } = sceneData;
+
+  if (ship.mesh) {
+    scene.remove(ship.mesh);
+    ship.mesh = null;
+  }
+  if (ship.ring) {
+    scene.remove(ship.ring);
+    ship.ring.geometry.dispose();
+    ship.ring.material.dispose();
+    ship.ring = null;
+  }
+
+  const arrow = velocityArrows.get(ship.id);
+  if (arrow) {
+    scene.remove(arrow);
+    velocityArrows.delete(ship.id);
+  }
+}
+
 async function init() {
   sceneData = createScene(document.getElementById('game'));
   const { scene } = sceneData;
   sceneData.renderer.domElement.style.touchAction = 'none';
 
   game = new GameState();
-  game.setup();
+
+  // Load scenario instead of legacy setup
+  game.loadScenario('FIRST_CONTACT');
 
   blastMarkers = new BlastMarkerManager(scene);
   torpedoes = new TorpedoManager(scene);
   orderVisuals = new OrderVisuals(scene);
 
-  const playerModel = await loadShipModel(
-    game.playerShip.stats.modelFile,
-    game.playerShip.stats.modelScale
-  );
-  applyFactionMaterial(playerModel, 'imperial');
-  game.playerShip.mesh = playerModel;
-  scene.add(playerModel);
-  game.playerShip.ring = createFactionRing(0x4488ff, game.playerShip.collisionRadius * 1.4);
-  scene.add(game.playerShip.ring);
-  syncShipVisuals(game.playerShip);
+  // Initialize visuals for all ships
+  const allShips = game.getAllShips();
+  await Promise.all(allShips.map(ship => initShipVisuals(ship)));
 
-  const aiModel = await loadShipModel(
-    game.aiShip.stats.modelFile,
-    game.aiShip.stats.modelScale
-  );
-  applyFactionMaterial(aiModel, 'xenos');
-  game.aiShip.mesh = aiModel;
-  scene.add(aiModel);
-  game.aiShip.ring = createFactionRing(0xff4444, game.aiShip.collisionRadius * 1.4);
-  scene.add(game.aiShip.ring);
-  syncShipVisuals(game.aiShip);
-
-  attachShipHitboxes();
-  positionCameraOnShip(game.playerShip);
-
-  playerVelArrow = createVelocityArrow(0x4488ff);
-  aiVelArrow = createVelocityArrow(0xff4444);
-  playerPlanArrow = createVelocityArrow(0xffffff);
-  scene.add(playerVelArrow);
-  scene.add(aiVelArrow);
-  scene.add(playerPlanArrow);
+  // Position camera on first player ship
+  const playerShips = game.getPlayerShips();
+  if (playerShips.length > 0) {
+    positionCameraOnShip(playerShips[0]);
+  }
 
   // Initialize InputManager
   inputManager = new InputManager(
@@ -163,7 +205,10 @@ async function init() {
     },
   });
 
-  setSelectedShip(game.playerShip);
+  // Select first player ship
+  if (playerShips.length > 0) {
+    setSelectedShip(playerShips[0]);
+  }
 
   ui.updateStatus(game, selectedShip);
 
@@ -185,22 +230,6 @@ async function init() {
   animate(performance.now());
 }
 
-function attachShipHitboxes() {
-  const ships = game.getAllShips();
-  for (const ship of ships) {
-    if (ship.mesh) {
-      ship.mesh.traverse((child) => {
-        if (child.isMesh) {
-          child.userData.ship = ship;
-        }
-      });
-    }
-    if (ship.ring) {
-      ship.ring.userData.ship = ship;
-    }
-  }
-}
-
 let lastTime = 0;
 function animate(time) {
   requestAnimationFrame(animate);
@@ -215,31 +244,56 @@ function animate(time) {
     updateRTS(dt);
   }
 
-  updateVelocityArrow(playerVelArrow, game.playerShip);
-  updateVelocityArrow(aiVelArrow, game.aiShip);
-  updatePlannedArrow(playerPlanArrow, selectedShip);
-  updateShipRing(game.playerShip);
-  updateShipRing(game.aiShip);
+  // Update visuals for all ships
+  for (const ship of game.getAllShips()) {
+    const arrow = velocityArrows.get(ship.id);
+    if (arrow) {
+      updateVelocityArrow(arrow, ship);
+    }
+    updateShipRing(ship);
+  }
+
+  // Update planned arrow for selected ship
+  if (selectedShip) {
+    // Could add a planned arrow here if desired
+  }
 
   sceneData.controls.update();
   sceneData.renderer.render(sceneData.scene, sceneData.camera);
 }
 
-function updateRTS(dt) {
+async function updateRTS(dt) {
   game.time += dt;
   game.roundTimer += dt;
 
-  updateAI(game.aiShip, game.playerShip);
+  // Update wave spawning
+  game.updateWaves(dt);
 
-  // Execute orders for player ships (AI ships use updateAI)
+  // Check for new ships that need visuals
   for (const ship of game.getAllShips()) {
-    if (ship.faction === 'imperial' && ship.hasActiveOrder()) {
+    if (!ship.mesh && !ship.isDestroyed) {
+      await initShipVisuals(ship);
+    }
+  }
+
+  // Update AI for all AI-controlled ships
+  const aiShips = game.getAIShips();
+  for (const aiShip of aiShips) {
+    if (!aiShip.isDestroyed) {
+      updateAI(aiShip, game);
+    }
+  }
+
+  // Execute orders for player ships
+  for (const ship of game.getPlayerShips()) {
+    if (ship.hasActiveOrder() && !ship.isDestroyed) {
       executeOrder(ship);
     }
   }
 
+  // Apply physics to all ships
   for (const ship of game.getAllShips()) {
-    if (!ship.isHulk) {
+    if (!ship.isHulk && !ship.isDestroyed) {
       applyRTSPhysics(ship, dt, TURN_DURATION);
     }
     syncShipVisuals(ship);
@@ -248,9 +302,12 @@ function updateRTS(dt) {
   // Update order visuals
   orderVisuals.updateAll(game.getAllShips());
 
-  blastMarkers.updateShipBlastMarkers(game.playerShip);
-  blastMarkers.updateShipBlastMarkers(game.aiShip);
+  // Update blast markers for all ships
+  for (const ship of game.getAllShips()) {
+    blastMarkers.updateShipBlastMarkers(ship);
+  }
 
+  // Update torpedoes
   const torpedoResults = torpedoes.advanceAndResolve(game.getAllShips(), dt, TURN_DURATION);
   for (const result of torpedoResults) {
     if (result.damage && result.damage.hullDamage > 0) {
@@ -272,8 +329,12 @@ function updateRTS(dt) {
     }
   }
 
-  checkDestruction(game.playerShip);
-  checkDestruction(game.aiShip);
+  // Check destruction for all ships
+  for (const ship of game.getAllShips()) {
+    checkDestruction(ship);
+  }
+
+  // Clear dead targets
   for (const ship of game.getAllShips()) {
     if (ship.target && ship.target.isDestroyed) {
       ship.target = null;
@@ -373,29 +434,6 @@ function positionCameraOnShip(ship) {
   sceneData.controls.update();
 }
 
-
-function updatePlannedArrow(arrow, ship) {
-  if (!arrow || !ship) return;
-
-  // Show desired facing direction (white arrow = where ship is rotating toward)
-  if (!ship.desiredFacingDir || ship.desiredFacingDir.lengthSq() < 0.0001 || ship.brace) {
-    arrow.visible = false;
-    return;
-  }
-
-  // Arrow length based on thrust power
-  const length = ship.getEffectiveThrust() * ship.thrustPower;
-  if (length <= 0.05) {
-    arrow.visible = false;
-    return;
-  }
-
-  arrow.position.copy(ship.position);
-  arrow.setDirection(ship.desiredFacingDir.clone().normalize());
-  arrow.setLength(length, 0.5, 0.3);
-  arrow.visible = true;
-}
-
 function resolveEndPhase() {
   for (const ship of game.getAllShips()) {
     if (ship.isHulk) {
@@ -415,7 +453,7 @@ function resolveEndPhase() {
       ship.criticals.fires -= repaired;
 
       if (ship.criticals.fires > 0) {
-        ship.currentHits = Math.max(0, ship.currentHits - ship.criticals.fires);
+        ship.currentStructure = Math.max(0, ship.currentStructure - ship.criticals.fires);
         game.log(`${ship.stats.name} takes ${ship.criticals.fires} fire damage!`);
       }
     }
@@ -425,6 +463,7 @@ function resolveEndPhase() {
       'starboard_damaged',
       'port_damaged',
       'prow_damaged',
+      'fore_damaged',
       'engines_damaged',
       'thrusters_damaged',
     ];
@@ -436,7 +475,7 @@ function resolveEndPhase() {
       }
     }
 
-    if (ship.currentHits <= 0 && !ship.catastrophicResolved) {
+    if (ship.currentStructure <= 0 && !ship.catastrophicResolved) {
       checkDestruction(ship);
     }
   }
@@ -445,7 +484,7 @@ function resolveEndPhase() {
 }
 
 function checkDestruction(ship) {
-  if (ship.currentHits > 0 || ship.catastrophicResolved) return;
+  if (ship.currentStructure > 0 || ship.catastrophicResolved) return;
 
   ship.catastrophicResolved = true;
   const catResult = rollCatastrophicDamage(ship);
@@ -481,18 +520,16 @@ function checkDestruction(ship) {
     }
   }
 
-  if (ship.mesh) {
-    sceneData.scene.remove(ship.mesh);
-    ship.mesh = null;
-  }
-  if (ship.ring) {
-    sceneData.scene.remove(ship.ring);
-    ship.ring.geometry.dispose();
-    ship.ring.material.dispose();
-    ship.ring = null;
-  }
+  removeShipVisuals(ship);
+
   if (selectedShip === ship) {
-    selectedShip = null;
+    // Select next available player ship
+    const playerShips = game.getPlayerShips().filter(s => !s.isDestroyed);
+    if (playerShips.length > 0) {
+      setSelectedShip(playerShips[0]);
+    } else {
+      selectedShip = null;
+    }
   }
 }
 
@@ -542,16 +579,7 @@ function resolveHulkDrift(ship) {
 
     ship.isHulk = false;
     ship.hulkType = null;
-    if (ship.mesh) {
-      sceneData.scene.remove(ship.mesh);
-      ship.mesh = null;
-    }
-    if (ship.ring) {
-      sceneData.scene.remove(ship.ring);
-      ship.ring.geometry.dispose();
-      ship.ring.material.dispose();
-      ship.ring = null;
-    }
+    removeShipVisuals(ship);
   }
 }
 
