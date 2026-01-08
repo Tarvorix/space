@@ -11,10 +11,13 @@ function rollDice(count) {
 }
 
 function isWeaponDisabled(ship, weapon) {
-  if (weapon.arc === FIRE_ARCS.DORSAL && ship.criticals.dorsal_damaged) return true;
-  if (weapon.arc === FIRE_ARCS.PORT && ship.criticals.port_damaged) return true;
-  if (weapon.arc === FIRE_ARCS.STARBOARD && ship.criticals.starboard_damaged) return true;
-  if (weapon.arc === FIRE_ARCS.PROW && ship.criticals.prow_damaged) return true;
+  const arc = weapon.arc;
+  // Handle both 'prow' and 'fore' arc names
+  if ((arc === FIRE_ARCS.PROW || arc === FIRE_ARCS.FORE) &&
+      (ship.criticals.prow_damaged || ship.criticals.fore_damaged)) return true;
+  if (arc === FIRE_ARCS.DORSAL && ship.criticals.dorsal_damaged) return true;
+  if (arc === FIRE_ARCS.PORT && ship.criticals.port_damaged) return true;
+  if (arc === FIRE_ARCS.STARBOARD && ship.criticals.starboard_damaged) return true;
   return false;
 }
 
@@ -47,14 +50,18 @@ function isInArc(attacker, target, arc) {
 
   const halfAngle = Math.cos(Math.PI / 4);
 
+  // Handle both 'prow' and 'fore' as forward arc
+  if (arc === FIRE_ARCS.PROW || arc === FIRE_ARCS.FORE) {
+    return localDir.dot(forward) >= halfAngle;
+  }
+
   switch (arc) {
-    case FIRE_ARCS.PROW:
-      return localDir.dot(forward) >= halfAngle;
     case FIRE_ARCS.PORT:
       return localDir.dot(left) >= halfAngle;
     case FIRE_ARCS.STARBOARD:
       return localDir.dot(right) >= halfAngle;
     case FIRE_ARCS.REAR:
+    case FIRE_ARCS.AFT:
       return localDir.dot(rear) >= halfAngle;
     case FIRE_ARCS.DORSAL: {
       if (localDir.y < 0) return false;
@@ -65,13 +72,45 @@ function isInArc(attacker, target, arc) {
   }
 }
 
-function getArmorValue(target, attacker) {
+/**
+ * Determine which armor facing the attacker is hitting
+ * @param {Ship} target - The ship being attacked
+ * @param {Ship} attacker - The attacking ship
+ * @returns {string} - 'fore', 'aft', 'port', or 'starboard'
+ */
+function getArmorFacing(target, attacker) {
   const dirToAttacker = attacker.position.clone().sub(target.position).normalize();
   const localDir = dirToAttacker.clone().applyQuaternion(target.quaternion.clone().invert());
+
   const forward = new THREE.Vector3(0, 0, 1);
-  const halfAngle = Math.cos(Math.PI / 4);
-  const isFront = localDir.dot(forward) >= halfAngle;
-  return isFront ? target.stats.armorFront : target.stats.armorOther;
+  const rear = new THREE.Vector3(0, 0, -1);
+  const left = new THREE.Vector3(-1, 0, 0);
+  const right = new THREE.Vector3(1, 0, 0);
+
+  // Determine which facing the attack is coming from
+  const dotForward = localDir.dot(forward);
+  const dotRear = localDir.dot(rear);
+  const dotLeft = localDir.dot(left);
+  const dotRight = localDir.dot(right);
+
+  // Find the maximum dot product to determine facing
+  const dots = [
+    { facing: 'fore', value: dotForward },
+    { facing: 'aft', value: dotRear },
+    { facing: 'port', value: dotLeft },
+    { facing: 'starboard', value: dotRight },
+  ];
+
+  dots.sort((a, b) => b.value - a.value);
+  return dots[0].facing;
+}
+
+/**
+ * Get armor value for the facing being attacked
+ */
+function getArmorValue(target, attacker) {
+  const facing = getArmorFacing(target, attacker);
+  return target.getArmorForFacing(facing);
 }
 
 function getBatteryToHitModifier(attacker, target, weapon, blastMarkers) {
@@ -136,7 +175,14 @@ export function resolveAllWeapons(attacker, target, blastMarkers, torpedoManager
       damage = applyHitsToTarget(target, hits);
     }
 
-    results.push({ weapon: weapon.name, type: weapon.type, rolls, hits, damage });
+    results.push({
+      weapon: weapon.name,
+      type: weapon.type,
+      rolls,
+      hits,
+      damage,
+      armorFacing: getArmorFacing(target, attacker),
+    });
   }
 
   return results;
@@ -186,7 +232,7 @@ export function applyHullDamage(target, hits) {
     }
   }
 
-  target.currentHits = Math.max(0, target.currentHits - totalDamage);
+  target.currentStructure = Math.max(0, target.currentStructure - totalDamage);
 
   return { hullDamage: totalDamage, criticals, savedByBrace };
 }
@@ -194,3 +240,6 @@ export function applyHullDamage(target, hits) {
 export function applyTorpedoHits(target, hits) {
   return applyHullDamage(target, hits);
 }
+
+// Export for use elsewhere
+export { getArmorFacing, getArmorValue };
